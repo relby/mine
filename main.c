@@ -7,7 +7,7 @@
 
 #define ROWS 10
 #define COLS 10
-#define BOMBS_PERCENTAGE 20
+#define BOMBS_PERCENTAGE 10
 
 typedef enum {
     Closed,
@@ -99,9 +99,14 @@ void field_display(Field* field) {
                     Cell cell = field->cells[row][col];
                     if (cell.is_bomb) {
                         printf("@");
-                    } else {
-                        printf("%zu", cell_count_nbor_bombs(field, row, col));
+                        break;
                     }
+                    size_t nbors_bombs = cell_count_nbor_bombs(field, row, col);
+                    if (nbors_bombs == 0) {
+                        printf(" ");
+                        break;
+                    }
+                    printf("%zu", nbors_bombs);
                     break;
                 }
             }
@@ -140,12 +145,33 @@ void field_randomize(Field* field, size_t bombs_percentage) {
     }
 }
 
+void field_open_all_nbors(Field* field, size_t row, size_t col) {
+    for (int drow = -1; drow <= 1; drow++) {
+        int r = (int)row + drow;
+        if (r < 0 || r >= (int)field->size.rows) continue;
+        for (int dcol = -1; dcol <= 1; dcol++) {
+            int c = (int)col + dcol;
+            if (c < 0 || c >= (int)field->size.cols) continue;
+            if (field->cells[r][c].state != Closed) continue;
+            field->cells[r][c].state = Open;
+            if (cell_count_nbor_bombs(field, r, c) == 0) {
+                field_open_all_nbors(field, r, c);
+            }
+        }
+    }
+}
+
 void field_open_at(Field* field, size_t row, size_t col) {
+    // TODO: Add a switch case for filtering closed cells
     if (!field->generated) {
         field_randomize(field, BOMBS_PERCENTAGE);
         field->generated = true;
     }
     field->cells[row][col].state = Open;
+    size_t nbor_bombs = cell_count_nbor_bombs(field, row, col);
+    if (nbor_bombs == 0) {
+        field_open_all_nbors(field, row, col);
+    }
 }
 
 void field_open_all_cells(Field* field) {
