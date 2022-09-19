@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <time.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -24,9 +25,7 @@ typedef struct {
 typedef struct {
     bool is_bomb;
     CellState state;
-    Position pos;
 } Cell;
-
 
 typedef struct {
     bool generated;
@@ -47,7 +46,6 @@ void field_reset(Field* field, size_t rows, size_t cols) {
             field->cells[row][col] = (Cell) {
                 .is_bomb = false,
                 .state   = Closed,
-                .pos     = { .x = row, .y = col }
             };
         }
     }
@@ -63,8 +61,22 @@ void field_reset(Field* field, size_t rows, size_t cols) {
     };
 }
 
-bool is_cursor_on_cell(Field* field, Cell* cell) {
-    return field->cursor.x == cell->pos.x && field->cursor.y == cell->pos.y;
+bool is_cursor_on_cell(Field* field, size_t row, size_t col) {
+    return field->cursor.x == col && field->cursor.y == row;
+}
+
+size_t cell_count_nbor_bombs(Field* field, size_t row, size_t col) {
+    size_t nbor_bombs = 0;
+    for (int drow = -1; drow <= 1; drow++) {
+        int r = (int)row + drow;
+        if (r < 0 || r >= (int)field->size.rows) continue;
+        for (int dcol = -1; dcol <= 1; dcol++) {
+            int c = (int)col + dcol;
+            if (c < 0 || c >= (int)field->size.cols) continue;
+            nbor_bombs += field->cells[r][c].is_bomb;
+        }
+    }
+    return nbor_bombs;
 }
 
 void field_delete(Field* field) {
@@ -78,9 +90,22 @@ void field_display(Field* field) {
     for (size_t row = 0; row < field->size.rows; row++) {
         for (size_t col = 0; col < field->size.cols; col++) {
             Cell cell = field->cells[row][col];
-            printf("%c", is_cursor_on_cell(field, &cell) ? '[': ' ');
-            printf(".");
-            printf("%c", is_cursor_on_cell(field, &cell) ? ']': ' ');
+            printf("%c", is_cursor_on_cell(field, row, col) ? '[': ' ');
+            switch (cell.state) {
+                case Closed:
+                    printf(".");
+                    break;
+                case Open: {
+                    Cell cell = field->cells[row][col];
+                    if (cell.is_bomb) {
+                        printf("@");
+                    } else {
+                        printf("%zu", cell_count_nbor_bombs(field, row, col));
+                    }
+                    break;
+                }
+            }
+            printf("%c", is_cursor_on_cell(field, row, col) ? ']': ' ');
         }
         printf("\n");
     }
@@ -92,26 +117,67 @@ void field_redisplay(Field* field) {
     field_display(field);
 }
 
+void random_cell(Field* field, size_t* row, size_t* col) {
+    *row = rand() % field->size.rows;
+    *col = rand() % field->size.cols;
+}
+
+void field_randomize(Field* field, size_t bombs_percentage) {
+    bombs_percentage = bombs_percentage > 100 ? 100 : bombs_percentage;
+    size_t bombs_count = (bombs_percentage * field->size.rows * field->size.cols) / 100;
+    for (size_t row = 0; row < field->size.rows; row++) {
+        for (size_t col = 0; col < field->size.cols; col++) {
+            field->cells[row][col].state = Closed;
+            field->cells[row][col].is_bomb = false;
+        }
+    }
+    for (size_t i = 0; i < bombs_count; i++) {
+        size_t row, col;
+        do {
+            random_cell(field, &row, &col);
+        } while (field->cells[row][col].is_bomb || row == field->cursor.y || col == field->cursor.x);
+        field->cells[row][col].is_bomb = true;
+    }
+}
+
+void field_open_at(Field* field, size_t row, size_t col) {
+    if (!field->generated) {
+        field_randomize(field, BOMBS_PERCENTAGE);
+        field->generated = true;
+    }
+    field->cells[row][col].state = Open;
+}
+
+void field_open_all_cells(Field* field) {
+    for (size_t row = 0; row < field->size.rows; row++) {
+        for (size_t col = 0; col < field->size.cols; col++) {
+            field_open_at(field, row, col);
+        }
+    }
+}
+
 void cursor_move_up(Field* field) {
-    field->cursor.x = (field->cursor.x + field->size.rows - 1) % field->size.rows;
-}
-
-void cursor_move_down(Field* field) {
-    field->cursor.x = (field->cursor.x + field->size.rows + 1) % field->size.rows;
-}
-
-void cursor_move_left(Field* field) {
     field->cursor.y = (field->cursor.y + field->size.rows - 1) % field->size.rows;
 }
 
-void cursor_move_right(Field* field) {
+void cursor_move_down(Field* field) {
     field->cursor.y = (field->cursor.y + field->size.rows + 1) % field->size.rows;
 }
 
+void cursor_move_left(Field* field) {
+    field->cursor.x = (field->cursor.x + field->size.cols - 1) % field->size.cols;
+}
+
+void cursor_move_right(Field* field) {
+    field->cursor.x = (field->cursor.x + field->size.cols + 1) % field->size.cols;
+}
+
 int main(void) {
+    srand(time(NULL));
     Field field;
     field_reset(&field, ROWS, COLS);
     field_display(&field);
+    field_randomize(&field, BOMBS_PERCENTAGE);
 
     static struct termios oldt, newt;
     tcgetattr(STDIN_FILENO, &oldt);
@@ -139,8 +205,22 @@ int main(void) {
                 cursor_move_right(&field);
                 field_redisplay(&field);
                 break;
+            case ' ':
+                field_open_at(&field, field.cursor.y, field.cursor.x);
+                field_redisplay(&field);
+                break;
+            case 'o':
+                field_open_all_cells(&field);
+                field_redisplay(&field);
+                break;
             case 'q':
                 quit = true;
+        }
+    }
+    size_t c = 0;
+    for (size_t row = 0; row < field.size.rows; row++) {
+        for (size_t col = 0; col < field.size.cols; col++) {
+            c += field.cells[row][col].is_bomb;
         }
     }
     field_delete(&field);
