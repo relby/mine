@@ -11,7 +11,8 @@
 
 typedef enum {
     Closed,
-    Open
+    Open,
+    Flagged
 } CellState;
 
 typedef struct {
@@ -95,6 +96,9 @@ void field_display(Field* field) {
                 case Closed:
                     printf(".");
                     break;
+                case Flagged:
+                    printf("*");
+                    break;
                 case Open: {
                     Cell cell = field->cells[row][col];
                     if (cell.is_bomb) {
@@ -162,16 +166,27 @@ void field_open_all_nbors(Field* field, size_t row, size_t col) {
 }
 
 void field_open_at(Field* field, size_t row, size_t col) {
-    // TODO: Add a switch case for filtering closed cells
     if (!field->generated) {
         field_randomize(field, BOMBS_PERCENTAGE);
         field->generated = true;
     }
-    field->cells[row][col].state = Open;
+    Cell* cell = &field->cells[row][col];
+    if (cell->state != Closed) return;
+    cell->state = Open;
     size_t nbor_bombs = cell_count_nbor_bombs(field, row, col);
     if (nbor_bombs == 0) {
         field_open_all_nbors(field, row, col);
     }
+}
+
+void field_flag_at(Field* field, size_t row, size_t col) {
+    if (!field->generated) {
+        field_randomize(field, BOMBS_PERCENTAGE);
+        field->generated = true;
+    }
+    Cell* cell = &field->cells[row][col];
+    if (cell->state == Open) return;
+    cell->state = cell->state == Closed ? Flagged : Closed;
 }
 
 void field_open_all_cells(Field* field) {
@@ -233,6 +248,10 @@ int main(void) {
                 break;
             case ' ':
                 field_open_at(&field, field.cursor.y, field.cursor.x);
+                field_redisplay(&field);
+                break;
+            case 'm':
+                field_flag_at(&field, field.cursor.y, field.cursor.x);
                 field_redisplay(&field);
                 break;
             case 'o':
