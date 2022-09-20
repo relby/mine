@@ -7,6 +7,7 @@
 
 #define ROWS 10
 #define COLS 10
+#define DEFAULT_CURSOR_POS ((Position) { .x = 0, .y = 0 })
 #define BOMBS_PERCENTAGE 10
 
 typedef enum {
@@ -35,7 +36,7 @@ typedef struct {
     Position cursor;
 } Field;
 
-void field_reset(Field* field, size_t rows, size_t cols) {
+void field_reset(Field* field, size_t rows, size_t cols, Position cursor) {
     field->generated = false;
 
     if (field->cells  != NULL) free(field->cells);
@@ -56,10 +57,7 @@ void field_reset(Field* field, size_t rows, size_t cols) {
         .cols = cols
     };
 
-    field->cursor = (Position) {
-        .x = 0,
-        .y = 0
-    };
+    field->cursor = cursor;
 }
 
 bool is_cursor_on_cell(Field* field, size_t row, size_t col) {
@@ -216,7 +214,7 @@ void cursor_move_right(Field* field) {
 int main(void) {
     srand(time(NULL));
     Field field;
-    field_reset(&field, ROWS, COLS);
+    field_reset(&field, ROWS, COLS, DEFAULT_CURSOR_POS);
     field_display(&field);
     field_randomize(&field, BOMBS_PERCENTAGE);
 
@@ -252,6 +250,10 @@ int main(void) {
                 break;
             case 'm':
                 field_flag_at(&field, field.cursor.y, field.cursor.x);
+                field_redisplay(&field);
+                break;
+            case 'r':
+                field_reset(&field, ROWS, COLS, field.cursor);
                 field_redisplay(&field);
                 break;
             case 'o':
