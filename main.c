@@ -13,7 +13,7 @@
 typedef enum {
     Closed,
     Open,
-    Flagged
+    Marked
 } CellState;
 
 typedef struct {
@@ -78,6 +78,22 @@ size_t cell_count_nbor_bombs(Field* field, size_t row, size_t col) {
     return nbor_bombs;
 }
 
+size_t cell_count_marked_nbors(Field* field, size_t row, size_t col) {
+    size_t open_nbor_cells = 0;
+    for (int drow = -1; drow <= 1; drow++) {
+        int r = (int)row + drow;
+        if (r < 0 || r >= (int)field->size.rows) continue;
+        for (int dcol = -1; dcol <= 1; dcol++) {
+            int c = (int)col + dcol;
+            if (c < 0 || c >= (int)field->size.cols) continue;
+            open_nbor_cells += field->cells[r][c].state == Marked;
+        }
+    }
+    return open_nbor_cells;
+
+}
+
+
 void field_delete(Field* field) {
     for (size_t row = 0; row < field->size.rows; row++) {
         free(field->cells[row]);
@@ -94,7 +110,7 @@ void field_display(Field* field) {
                 case Closed:
                     printf(".");
                     break;
-                case Flagged:
+                case Marked:
                     printf("*");
                     break;
                 case Open: {
@@ -169,22 +185,34 @@ void field_open_at(Field* field, size_t row, size_t col) {
         field->generated = true;
     }
     Cell* cell = &field->cells[row][col];
-    if (cell->state != Closed) return;
-    cell->state = Open;
-    size_t nbor_bombs = cell_count_nbor_bombs(field, row, col);
-    if (nbor_bombs == 0) {
-        field_open_all_nbors(field, row, col);
+    switch (cell->state) {
+        case Closed: {
+            cell->state = Open;
+            size_t nbor_bombs = cell_count_nbor_bombs(field, row, col);
+            if (nbor_bombs == 0) {
+                field_open_all_nbors(field, row, col);
+            }
+            break;
+        }
+        case Open: {
+            size_t nbor_bombs = cell_count_nbor_bombs(field, row, col);
+            size_t opened_nbor_bombs = cell_count_marked_nbors(field, row, col);
+            if (nbor_bombs == opened_nbor_bombs) {
+                field_open_all_nbors(field, row, col);
+            }
+            break;
+        }
     }
 }
 
-void field_flag_at(Field* field, size_t row, size_t col) {
+void field_mark_at(Field* field, size_t row, size_t col) {
     if (!field->generated) {
         field_randomize(field, BOMBS_PERCENTAGE);
         field->generated = true;
     }
     Cell* cell = &field->cells[row][col];
     if (cell->state == Open) return;
-    cell->state = cell->state == Closed ? Flagged : Closed;
+    cell->state = cell->state == Closed ? Marked : Closed;
 }
 
 void field_open_all_cells(Field* field) {
@@ -249,7 +277,7 @@ int main(void) {
                 field_redisplay(&field);
                 break;
             case 'm':
-                field_flag_at(&field, field.cursor.y, field.cursor.x);
+                field_mark_at(&field, field.cursor.y, field.cursor.x);
                 field_redisplay(&field);
                 break;
             case 'r':
@@ -262,12 +290,6 @@ int main(void) {
                 break;
             case 'q':
                 quit = true;
-        }
-    }
-    size_t c = 0;
-    for (size_t row = 0; row < field.size.rows; row++) {
-        for (size_t col = 0; col < field.size.cols; col++) {
-            c += field.cells[row][col].is_bomb;
         }
     }
     field_delete(&field);
