@@ -179,7 +179,7 @@ void field_open_all_nbors(Field* field, size_t row, size_t col) {
     }
 }
 
-void field_open_at(Field* field, size_t row, size_t col) {
+bool field_open_at(Field* field, size_t row, size_t col) {
     if (!field->generated) {
         field_randomize(field, BOMBS_PERCENTAGE);
         field->generated = true;
@@ -188,6 +188,7 @@ void field_open_at(Field* field, size_t row, size_t col) {
     switch (cell->state) {
         case Closed: {
             cell->state = Open;
+            if (cell->is_bomb) return false;
             size_t nbor_bombs = cell_count_nbor_bombs(field, row, col);
             if (nbor_bombs == 0) {
                 field_open_all_nbors(field, row, col);
@@ -203,6 +204,7 @@ void field_open_at(Field* field, size_t row, size_t col) {
             break;
         }
     }
+    return true;
 }
 
 void field_mark_at(Field* field, size_t row, size_t col) {
@@ -219,6 +221,17 @@ void field_open_all_cells(Field* field) {
     for (size_t row = 0; row < field->size.rows; row++) {
         for (size_t col = 0; col < field->size.cols; col++) {
             field_open_at(field, row, col);
+        }
+    }
+}
+
+void field_open_all_bombs(Field* field) {
+    for (size_t row = 0; row < field->size.rows; row++) {
+        for (size_t col = 0; col < field->size.cols; col++) {
+            Cell* cell = &field->cells[row][col];
+            if (cell->is_bomb) {
+                cell->state = Open;
+            }
         }
     }
 }
@@ -241,6 +254,7 @@ void cursor_move_right(Field* field) {
 
 int main(void) {
     srand(time(NULL));
+
     Field field;
     field_reset(&field, ROWS, COLS, DEFAULT_CURSOR_POS);
     field_display(&field);
@@ -272,20 +286,23 @@ int main(void) {
                 cursor_move_right(&field);
                 field_redisplay(&field);
                 break;
-            case ' ':
-                field_open_at(&field, field.cursor.y, field.cursor.x);
-                field_redisplay(&field);
+            case ' ': {
+                if (!field_open_at(&field, field.cursor.y, field.cursor.x)) {
+                    field_open_all_bombs(&field);
+                    quit = true;
+                    field_redisplay(&field);
+                    printf("You lost!");
+                } else {
+                    field_redisplay(&field);
+                }
                 break;
+            }
             case 'm':
                 field_mark_at(&field, field.cursor.y, field.cursor.x);
                 field_redisplay(&field);
                 break;
             case 'r':
                 field_reset(&field, ROWS, COLS, field.cursor);
-                field_redisplay(&field);
-                break;
-            case 'o':
-                field_open_all_cells(&field);
                 field_redisplay(&field);
                 break;
             case 'q':
