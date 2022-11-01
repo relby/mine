@@ -163,20 +163,23 @@ void field_randomize(Field* field, size_t bombs_percentage) {
     }
 }
 
-void field_open_all_nbors(Field* field, size_t row, size_t col) {
+bool field_open_all_nbors(Field* field, size_t row, size_t col) {
     for (int drow = -1; drow <= 1; drow++) {
         int r = (int)row + drow;
         if (r < 0 || r >= (int)field->size.rows) continue;
         for (int dcol = -1; dcol <= 1; dcol++) {
             int c = (int)col + dcol;
             if (c < 0 || c >= (int)field->size.cols) continue;
-            if (field->cells[r][c].state != Closed) continue;
-            field->cells[r][c].state = Open;
-            if (cell_count_nbor_bombs(field, r, c) == 0) {
-                field_open_all_nbors(field, r, c);
+            if (field->cells[r][c].state == Closed) {
+                field->cells[r][c].state = Open;
+                if (field->cells[r][c].is_bomb) return false;
+                if (cell_count_nbor_bombs(field, r, c) == 0) {
+                    field_open_all_nbors(field, r, c);
+                }
             }
         }
     }
+    return true;
 }
 
 bool field_open_at(Field* field, size_t row, size_t col) {
@@ -191,7 +194,7 @@ bool field_open_at(Field* field, size_t row, size_t col) {
             if (cell->is_bomb) return false;
             size_t nbor_bombs = cell_count_nbor_bombs(field, row, col);
             if (nbor_bombs == 0) {
-                field_open_all_nbors(field, row, col);
+                return field_open_all_nbors(field, row, col);
             }
             break;
         }
@@ -199,7 +202,7 @@ bool field_open_at(Field* field, size_t row, size_t col) {
             size_t nbor_bombs = cell_count_nbor_bombs(field, row, col);
             size_t opened_nbor_bombs = cell_count_marked_nbors(field, row, col);
             if (nbor_bombs == opened_nbor_bombs) {
-                field_open_all_nbors(field, row, col);
+                return field_open_all_nbors(field, row, col);
             }
             break;
         }
@@ -300,7 +303,7 @@ int main(void) {
                 }
                 break;
             }
-            case 'm':
+            case 'f':
                 field_mark_at(&field, field.cursor.y, field.cursor.x);
                 field_redisplay(&field);
                 break;
