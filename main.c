@@ -272,6 +272,8 @@ int main(void) {
     newt.c_lflag &= ~(ICANON | ECHO);          
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
+    int exit_code = 0;
+
     bool quit = false;
     while (!quit) {
         char cmd = getchar();
@@ -298,6 +300,7 @@ int main(void) {
                     quit = true;
                     field_redisplay(&field);
                     printf("You lost!");
+                    exit_code = 1;
                 } else {
                     field_redisplay(&field);
                 }
@@ -317,4 +320,5 @@ int main(void) {
     }
     field_delete(&field);
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return exit_code;
 }
