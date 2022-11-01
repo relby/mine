@@ -203,6 +203,9 @@ bool field_open_at(Field* field, size_t row, size_t col) {
             }
             break;
         }
+        default: {
+            break;
+        }
     }
     return true;
 }

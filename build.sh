@@ -2,4 +2,4 @@
 
 set -xe
 
-cc -Wall -Wextra *.c -o main.out
+cc -Wall -Wextra -std=c11 -pedantic *.c -o main.out
