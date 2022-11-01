@@ -5,10 +5,14 @@
 #include <termios.h>
 #include <unistd.h>
 
-#define ROWS 10
-#define COLS 10
+#define DEFAULT_ROWS 10
+#define DEFAULT_COLS 10
 #define DEFAULT_CURSOR_POS ((Position) { .x = 0, .y = 0 })
-#define BOMBS_PERCENTAGE 10
+#define DEFAULT_BOMBS_PERCENTAGE 10
+
+static int ROWS             = DEFAULT_ROWS;
+static int COLS             = DEFAULT_COLS;
+static int BOMBS_PERCENTAGE = DEFAULT_BOMBS_PERCENTAGE;
 
 typedef enum {
     Closed,
@@ -258,8 +262,53 @@ void cursor_move_right(Field* field) {
     field->cursor.x = (field->cursor.x + field->size.cols + 1) % field->size.cols;
 }
 
-int main(void) {
+void parse_args(int argc, char** argv, int* rows, int* cols, int* bombs_percentage) {
+    switch (argc) {
+    case 4: {
+        if (sscanf(argv[3], "%i", bombs_percentage) != 1) {
+            fprintf(stderr, "%s bombs_percentage must be an integer\n", argv[3]);
+            exit(1);
+        }
+        if (*bombs_percentage < 0 || *bombs_percentage > 50) {
+            fprintf(stderr, "%d bombs_percentage must be in boundaries (0-50)\n", *bombs_percentage);
+            exit(1);
+        }
+    }
+    case 3: {
+        if (sscanf(argv[2], "%i", cols) != 1) {
+            fprintf(stderr, "%s number of cols must be an integer\n", argv[2]);
+            exit(1);
+        }
+        if (*cols <= 0) {
+            fprintf(stderr, "%d number of cols must be positive\n", *cols);
+            exit(1);
+        }
+    }
+    case 2: {
+        if (sscanf(argv[1], "%i", rows) != 1) {
+            fprintf(stderr, "%s number of rows must be an integer\n", argv[1]);
+            exit(1);
+        }
+        if (*rows <= 0) {
+            fprintf(stderr, "%d number of rows must be positive\n", *rows);
+            exit(1);
+        }
+    }
+    }
+}
+
+int main1(int argc, char** argv) {
+    int rows = ROWS;
+    int cols = COLS;
+    int bombs_percentage = BOMBS_PERCENTAGE;
+
+    parse_args(argc, argv, &rows, &cols, &bombs_percentage);
+}
+
+int main(int argc, char** argv) {
     srand(time(NULL));
+
+    parse_args(argc, argv, &ROWS, &COLS, &BOMBS_PERCENTAGE);
 
     Field field;
     field_reset(&field, ROWS, COLS, DEFAULT_CURSOR_POS);
