@@ -297,13 +297,19 @@ void parse_args(int argc, char** argv, int* rows, int* cols, int* bombs_percenta
     }
 }
 
-int main1(int argc, char** argv) {
-    int rows = ROWS;
-    int cols = COLS;
-    int bombs_percentage = BOMBS_PERCENTAGE;
-
-    parse_args(argc, argv, &rows, &cols, &bombs_percentage);
+bool field_check_win_condition(Field* field) {
+    size_t not_bomb_cells = 0;
+    size_t opened_cells = 0;
+    for (size_t row = 0; row < field->size.rows; row++) {
+        for (size_t col = 0; col < field->size.cols; col++) {
+            Cell* cell = &field->cells[row][col];
+            not_bomb_cells += !cell->is_bomb;
+            opened_cells += (cell->state == Open);
+        }
+    }
+    return not_bomb_cells == opened_cells;
 }
+
 
 int main(int argc, char** argv) {
     srand(time(NULL));
@@ -348,8 +354,12 @@ int main(int argc, char** argv) {
                     field_open_all_bombs(&field);
                     quit = true;
                     field_redisplay(&field);
-                    printf("You lost!");
+                    printf("You lost!\n");
                     exit_code = 1;
+                } else if (field_check_win_condition(&field)) {
+                    quit = true;
+                    field_redisplay(&field);
+                    printf("Congratulations! You won!\n");
                 } else {
                     field_redisplay(&field);
                 }
